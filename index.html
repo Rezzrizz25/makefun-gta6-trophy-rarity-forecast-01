@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTA VI trophy rarity — week-one forecast</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0 auto; max-width: 960px; padding: 24px 16px 64px; line-height: 1.5; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+  h2 { margin-top: 2rem; border-top: 1px solid #8884; padding-top: 1rem; }
+  .sub { color: #666; margin-top: 0; }
+  .note { background: #fff8e1; border: 1px solid #e6c200; border-radius: 8px; padding: 12px 14px; }
+  @media (prefers-color-scheme: dark) { .note { background: #2a2300; } }
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; align-items: center; }
+  .controls label { font-size: 0.9rem; }
+  input, select { font: inherit; padding: 4px 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #8883; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { cursor: pointer; user-select: none; }
+  th:hover { text-decoration: underline; }
+  .tier { display: inline-block; min-width: 52px; text-align: center; border-radius: 4px; padding: 1px 6px; font-size: 0.8rem; }
+  .platinum { background: #7dd3fc; color: #082f49; }
+  .gold { background: #fde047; color: #422006; }
+  .silver { background: #e2e8f0; color: #1e293b; }
+  .bronze { background: #fdba74; color: #431407; }
+  .bar { display: inline-block; height: 8px; background: #38bdf8; border-radius: 4px; vertical-align: middle; }
+  code { font-size: 0.9em; }
+  ul { padding-left: 1.2rem; }
+</style>
+</head>
+<body>
+<h1>GTA VI trophy rarity — week-one forecast</h1>
+<p class="sub">Predicted Exophase earn rates at 2026-11-26 00:00 UTC, seven days after launch.
+Model: <code>main.py</code> in this repository (log-time Theil-Sen trend in
+ceiling-logit space, with an anchor prior from two real Exophase snapshots).</p>
+
+<div class="note"><strong>Illustrative run.</strong> The table below is the program's output on a
+<em>synthetic</em> final-like case: a 2-day history simulated from the two real anchors
+(launch night, 638 players tracked; live page 2026-11-20 18:51 UTC) with rate curves
+saturating at stated long-run rates. It shows what the model forecasts and how the
+page reads — it is <strong>not</strong> the graded forecast. The graded forecast is produced by
+<code>main.py</code> at grading time from the house's real case (every read recorded
+before the 2026-11-21 11:30 UTC deadline).</div>
+
+<div class="controls">
+  <label>Search <input id="q" type="search" placeholder="trophy name…"></label>
+  <label>Tier
+    <select id="tier">
+      <option value="">all</option>
+      <option value="platinum">platinum</option>
+      <option value="gold">gold</option>
+      <option value="silver">silver</option>
+      <option value="bronze">bronze</option>
+    </select>
+  </label>
+  <label>Sort by
+    <select id="sort">
+      <option value="q50desc">median (q50) ↓</option>
+      <option value="q50asc">median (q50) ↑</option>
+      <option value="lastdesc">last rate ↓</option>
+      <option value="name">name A–Z</option>
+    </select>
+  </label>
+  <span id="count"></span>
+</div>
+
+<table>
+<thead><tr>
+  <th data-k="name">Trophy</th><th data-k="tier">Tier</th>
+  <th data-k="last">Last %</th><th data-k="q05">q05</th><th data-k="q25">q25</th>
+  <th data-k="q50">Median</th><th data-k="q75">q75</th><th data-k="q95">q95</th>
+  <th>90% band</th>
+</tr></thead>
+<tbody id="rows"></tbody>
+</table>
+
+<h2>How the model works</h2>
+<ul>
+  <li><strong>Clock:</strong> <code>x = ln(1 + hours since 2026-11-19T00:00Z)</code>. Log-time
+    makes growth saturate in real time — the right shape for a launch week.</li>
+  <li><strong>Space:</strong> <code>u = logit(rate / ceiling)</code>. A logistic approach to a
+    trophy's ceiling is a straight line in <code>u</code>, so the forecast saturates instead
+    of running away. Far below the ceiling, <code>u</code> behaves like <code>logit(rate)</code>.</li>
+  <li><strong>Trend:</strong> a Theil-Sen line of <code>u</code> on <code>x</code> over the last 24 h of
+    reads — the median pairwise slope, so a level jump in the feed (an Exophase refresh, a
+    tracked-player jump) cannot bend it the way it bends OLS. Slope shrunk toward the prior.</li>
+  <li><strong>Prior:</strong> the line through two real Exophase snapshots — launch night
+    (638 players tracked) and the live page 2026-11-20 18:51 UTC. It carries the dilution event:
+    the tracked base growing ~100x while earners accumulate slowly. It is the whole forecast when
+    the history is flat (launch night: every read identical) and only a shrinkage target when the
+    history is rich.</li>
+  <li><strong>Ceilings:</strong> Platinum 0.02% (100% completion needs ~200 h of play), story
+    chapters climb furthest, the first mission is already at ~100%, grinds barely move in week one.</li>
+  <li><strong>Spread:</strong> random-walk term + fit residual + slope uncertainty + prior
+    uncertainty. Floor trophies (last rate at the 0.01% print floor) get a wide band — the print
+    is censored.</li>
+</ul>
+
+<h2>Assumptions</h2>
+<ul>
+  <li>Exophase's tracked-player base keeps growing but more slowly after the launch weekend;
+    dilution therefore slows, and earners keep accumulating — so rates for story trophies rise
+    through the week while most grind trophies stay near the print floor.</li>
+  <li>The first-weekend play wave (21–22 Nov) moves the most players through Chapter 1 and the
+    early side content; Chapter 3 and later stay rare at day 7.</li>
+  <li>No trophy is missable in a way that freezes its rate; no post-launch patch changes the list.</li>
+</ul>
+
+<h2>Sources</h2>
+<ul>
+  <li>Trophy rates: <a href="https://www.exophase.com/game/grand-theft-auto-vi-psn/trophies/">Exophase — Grand Theft Auto VI Trophies, PS5</a></li>
+  <li>Launch sales: Sensor Tower estimates via Notebookcheck/VGC — ~24.6M copies, ~$2.36B day one; ~75% on PS5.</li>
+  <li>Trophy list: 55 trophies (1 Platinum, 2 Gold, 6 Silver, 46 Bronze); Platinum needs 100% completion; ~200 h for everything (VGC).</li>
+  <li>Competition: <a href="https://make.fun/bounty/gta6-trophy-rarity-forecast-01">make.fun — gta6-trophy-rarity-forecast-01</a></li>
+</ul>
+
+<script>
+const DATA = [{"id": 1, "name": "Vice Got a Price!", "tier": "platinum", "description": "Congratulations! You're a Leonida Legend.", "last": 0.06, "q": [0.0341, 0.0492, 0.0589, 0.0668, 0.0747], "truth": 0.05}, {"id": 2, "name": "Just Like Paradise", "tier": "bronze", "description": "Complete Gone Fishing.", "last": 99.5, "q": [87.9015, 95.5068, 97.788, 98.8971, 99.5598], "truth": 99.5}, {"id": 3, "name": "Paradise Lost", "tier": "bronze", "description": "Complete Chapter 1.", "last": 16.79, "q": [13.3164, 22.439, 29.9801, 37.5236, 46.656], "truth": 29.46}, {"id": 4, "name": "T**s Ass Drug Money", "tier": "bronze", "description": "Complete Chapter 2.", "last": 1.9, "q": [0.691, 1.3998, 2.2605, 3.5937, 6.6984], "truth": 2.26}, {"id": 5, "name": "Vice City, Baby!", "tier": "bronze", "description": "Complete Chapter 3.", "last": 17.64, "q": [13.2144, 16.3958, 18.0053, 19.1391, 20.1358], "truth": 17.91}, {"id": 6, "name": "Top Of The World, Ma", "tier": "bronze", "description": "Complete Chapter 4.", "last": 9.78, "q": [7.3419, 9.1018, 9.991, 10.6169, 11.1668], "truth": 9.94}, {"id": 7, "name": "You Gotta Know When to Get Off", "tier": "gold", "description": "Complete the final mission.", "last": 6.94, "q": [5.0309, 6.3235, 6.9905, 7.4658, 7.8874], "truth": 6.99}, {"id": 8, "name": "Trust", "tier": "bronze", "description": "Complete Breakfast Run.", "last": 5.2, "q": [3.0598, 5.6184, 8.1316, 11.1238, 15.6236], "truth": 8.08}, {"id": 9, "name": "Break the Bank", "tier": "bronze", "description": "Complete The Cartel Heist.", "last": 5.83, "q": [1.9457, 3.7621, 5.7585, 8.4722, 13.4585], "truth": 5.95}, {"id": 10, "name": "Family Matters", "tier": "bronze", "description": "Complete Child's Play.", "last": 5.89, "q": [1.9467, 3.7639, 5.7611, 8.4756, 13.4627], "truth": 5.97}, {"id": 11, "name": "DWNFALL", "tier": "bronze", "description": "Complete Headliners.", "last": 5.94, "q": [1.942, 3.7554, 5.749, 8.4599, 13.4436], "truth": 5.99}, {"id": 12, "name": "Hi-Jacked", "tier": "bronze", "description": "Complete VCIA Takedown.", "last": 5.97, "q": [1.935, 3.7429, 5.7314, 8.4369, 13.4156], "truth": 6.0}, {"id": 13, "name": "Snow Storm", "tier": "bronze", "description": "Complete Operation Savage Glory.", "last": 5.89, "q": [1.9436, 3.7583, 5.7532, 8.4653, 13.4501], "truth": 5.97}, {"id": 14, "name": "A Long Road", "tier": "gold", "description": "Attain 100% Completion.", "last": 0.31, "q": [0.2148, 0.2747, 0.3065, 0.3295, 0.3502], "truth": 0.3}, {"id": 15, "name": "Cunning Stunts", "tier": "silver", "description": "Complete 250 Stunts.", "last": 1.49, "q": [0.8879, 1.2455, 1.4645, 1.6384, 1.8071], "truth": 1.5}, {"id": 16, "name": "Master of None", "tier": "bronze", "description": "Try each type of activity once.", "last": 5.98, "q": [1.9299, 3.7337, 5.7184, 8.4199, 13.3948], "truth": 6.0}, {"id": 17, "name": "The Shootist", "tier": "silver", "description": "Earn a gold medal in all Shooting Range challenges.", "last": 1.49, "q": [0.8879, 1.2455, 1.4645, 1.6384, 1.8071], "truth": 1.5}, {"id": 18, "name": "Top Fun", "tier": "bronze", "description": "Win a Top Fun Drone Race at every location.", "last": 1.0, "q": [0.4293, 0.7221, 0.967, 1.216, 1.5245], "truth": 1.0}, {"id": 19, "name": "Earn Cash, Not Kudos", "tier": "bronze", "description": "Win 20 different races.", "last": 1.0, "q": [0.4293, 0.7221, 0.967, 1.216, 1.5245], "truth": 1.0}, {"id": 20, "name": "Baited My Tackle", "tier": "bronze", "description": "Beat Cal in a fishing challenge.", "last": 17.53, "q": [12.9689, 20.6061, 26.3151, 31.5595, 37.3715], "truth": 25.9}, {"id": 21, "name": "Stick Fiddler", "tier": "bronze", "description": "Complete an arcade game.", "last": 1.36, "q": [0.4932, 1.0025, 1.6257, 2.6016, 4.925], "truth": 1.62}, {"id": 22, "name": "Road to Rehabilitation", "tier": "bronze", "description": "Complete the final mission for Andy.", "last": 5.91, "q": [1.9455, 3.7618, 5.7581, 8.4717, 13.458], "truth": 5.98}, {"id": 23, "name": "This Was No Boat Accident", "tier": "bronze", "description": "Complete the final mission for Kenton.", "last": 5.88, "q": [1.9447, 3.7604, 5.756, 8.469, 13.4546], "truth": 5.97}, {"id": 24, "name": "The Lone Rider", "tier": "bronze", "description": "Complete the final mission for Billy.", "last": 5.95, "q": [1.9405, 3.7527, 5.7452, 8.455, 13.4376], "truth": 5.99}, {"id": 25, "name": "Strangers & Freaks", "tier": "silver", "description": "Complete 8 mission strands for strangers across the state of Leonida.", "last": 1.48, "q": [0.5153, 0.9598, 1.4121, 1.9735, 2.8707], "truth": 1.5}, {"id": 26, "name": "Supply & Demand", "tier": "bronze", "description": "Complete the final mission for Randy.", "last": 5.95, "q": [1.9396, 3.7512, 5.7431, 8.4522, 13.4342], "truth": 5.99}, {"id": 27, "name": "Spin On This!", "tier": "bronze", "description": "Complete the final mission for Tyrone.", "last": 5.97, "q": [1.9374, 3.7471, 5.7374, 8.4447, 13.4252], "truth": 5.99}, {"id": 28, "name": "Positive Mental Attitude", "tier": "bronze", "description": "Meditate at every spot across Leonida.", "last": 1.0, "q": [0.4293, 0.7221, 0.967, 1.216, 1.5245], "truth": 1.0}, {"id": 29, "name": "Fair Game", "tier": "bronze", "description": "Hunt a unique animal for Bret.", "last": 5.96, "q": [1.9375, 3.7473, 5.7376, 8.4451, 13.4255], "truth": 5.99}, {"id": 30, "name": "Don't Touch My Deck", "tier": "silver", "description": "Complete 3 Collectible Card sets.", "last": 1.48, "q": [0.9178, 1.2736, 1.4878, 1.6559, 1.8173], "truth": 1.49}, {"id": 31, "name": "You WAiNKer!", "tier": "silver", "description": "WAiNK It at 100 locations.", "last": 1.48, "q": [0.9167, 1.2726, 1.487, 1.6553, 1.817], "truth": 1.49}, {"id": 32, "name": "One Last Thing", "tier": "bronze", "description": "Complete 50 Challenges.", "last": 0.99, "q": [0.4225, 0.7128, 0.957, 1.2064, 1.5173], "truth": 1.0}, {"id": 33, "name": "Hot Together", "tier": "bronze", "description": "Lose a 4 star Wanted Level with your partner and escape the heat.", "last": 4.68, "q": [1.6747, 3.2678, 5.0528, 7.5379, 12.289], "truth": 5.18}, {"id": 34, "name": "Retail Therapy", "tier": "bronze", "description": "Rob 3 shops back-to-back with your partner without losing your Wanted Level.", "last": 5.8, "q": [1.9466, 3.7636, 5.7606, 8.475, 13.4619], "truth": 5.94}, {"id": 35, "name": "Whip It Good", "tier": "bronze", "description": "Discover 100 vehicles.", "last": 1.8, "q": [0.6186, 1.2516, 2.0186, 3.2031, 5.9456], "truth": 2.01}, {"id": 36, "name": "Gunslinger", "tier": "bronze", "description": "Take down 5 enemies in a single use of Combat Focus.", "last": 5.58, "q": [1.9193, 3.7144, 5.6909, 8.3838, 13.3504], "truth": 5.83}, {"id": 37, "name": "Catch Me If You Can", "tier": "bronze", "description": "Make an unscheduled departure at VCIA.", "last": 4.82, "q": [1.7211, 3.3532, 5.1756, 7.7024, 12.4993], "truth": 5.31}, {"id": 38, "name": "Challenging Tank", "tier": "bronze", "description": "Kinda hot in these Rhinos.", "last": 5.67, "q": [1.9228, 3.7206, 5.6998, 8.3954, 13.3645], "truth": 5.87}, {"id": 39, "name": "Sneakthief", "tier": "bronze", "description": "Rob a jewelry store without being detected.", "last": 5.89, "q": [1.9463, 3.7632, 5.76, 8.4742, 13.461], "truth": 5.97}, {"id": 40, "name": "Maximum Withdrawal", "tier": "silver", "description": "Rob 5 Bank Vaults and escape.", "last": 1.49, "q": [0.5197, 0.9672, 1.4219, 1.985, 2.8824], "truth": 1.5}, {"id": 41, "name": "A Classic Blitz Play", "tier": "bronze", "description": "Rob an Armored Truck and escape.", "last": 5.97, "q": [1.9348, 3.7424, 5.7307, 8.4361, 13.4146], "truth": 6.0}, {"id": 42, "name": "The Goodtime State", "tier": "bronze", "description": "Explore all of Leonida.", "last": 5.82, "q": [1.9459, 3.7625, 5.7591, 8.4729, 13.4593], "truth": 5.95}, {"id": 43, "name": "Pest Control", "tier": "bronze", "description": "Rob an Illegal Operation belonging to each gang.", "last": 5.98, "q": [1.9323, 3.7379, 5.7244, 8.4278, 13.4045], "truth": 6.0}, {"id": 44, "name": "In The Beginning\u2026", "tier": "bronze", "description": "Enjoy a cocktail with a view on Ocean Beach.", "last": 5.38, "q": [1.876, 3.6358, 5.5795, 8.2376, 13.1705], "truth": 5.71}, {"id": 45, "name": "Capital Offense", "tier": "bronze", "description": "Smash your way out of a vehicle showroom in classic style.", "last": 5.94, "q": [1.944, 3.7591, 5.7543, 8.4669, 13.4521], "truth": 5.99}, {"id": 46, "name": "Let\u2019s Go Bowling", "tier": "bronze", "description": "Follow-through at the Kolt & Associates' bowling alley.", "last": 1.14, "q": [0.4254, 0.8669, 1.4101, 2.2673, 4.3401], "truth": 1.4}, {"id": 47, "name": "Personal Best", "tier": "bronze", "description": "A partnership with mass appeal.", "last": 5.95, "q": [1.9405, 3.7527, 5.7452, 8.455, 13.4376], "truth": 5.99}, {"id": 48, "name": "Actions Speak Louder", "tier": "bronze", "description": "Choices made (for better or worse).", "last": 5.97, "q": [1.9306, 3.7349, 5.7202, 8.4222, 13.3977], "truth": 6.0}, {"id": 49, "name": "Bad Luck, I Guess", "tier": "bronze", "description": "Second time's the charm.", "last": 5.92, "q": [1.9465, 3.7636, 5.7607, 8.4751, 13.4621], "truth": 5.98}, {"id": 50, "name": "The Truth Is Out There", "tier": "bronze", "description": "What the hell just happened?", "last": 1.47, "q": [0.5115, 1.0389, 1.6831, 2.6899, 5.0766], "truth": 1.7}, {"id": 51, "name": "Ten Pin", "tier": "bronze", "description": "Bowl 'em over with a melee drive-by.", "last": 5.51, "q": [1.9071, 3.6923, 5.6596, 8.3428, 13.3001], "truth": 5.79}, {"id": 52, "name": "Dime on the Dollar", "tier": "bronze", "description": "Earn $250,000 laundering Marked Bills through your contacts.", "last": 5.97, "q": [1.9362, 3.7449, 5.7343, 8.4407, 13.4203], "truth": 6.0}, {"id": 53, "name": "Treat Yo Self", "tier": "bronze", "description": "Spend $100,000 across all shops.", "last": 5.93, "q": [1.9423, 3.7559, 5.7498, 8.461, 13.4449], "truth": 5.99}, {"id": 54, "name": "Little Boxes", "tier": "bronze", "description": "Purchase all garage properties.", "last": 5.96, "q": [1.9356, 3.7439, 5.7329, 8.4388, 13.4179], "truth": 5.99}, {"id": 55, "name": "On the Spot", "tier": "bronze", "description": "Register 10 vehicles to the Scooter Bros app.", "last": 5.98, "q": [1.9323, 3.7379, 5.7244, 8.4278, 13.4045], "truth": 6.0}];
+const tbody = document.getElementById('rows');
+const qEl = document.getElementById('q');
+const tierEl = document.getElementById('tier');
+const sortEl = document.getElementById('sort');
+const countEl = document.getElementById('count');
+function fmt(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+function render() {
+  const q = qEl.value.toLowerCase();
+  const tier = tierEl.value;
+  let rows = DATA.filter(r => (!tier || r.tier === tier) && (!q || r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q)));
+  const s = sortEl.value;
+  rows.sort((a, b) => s === 'name' ? a.name.localeCompare(b.name)
+    : s === 'q50asc' ? a.q[2] - b.q[2]
+    : s === 'lastdesc' ? b.last - a.last
+    : b.q[2] - a.q[2]);
+  countEl.textContent = rows.length + ' trophies';
+  tbody.innerHTML = rows.map(r => {
+    const w = Math.max(2, Math.min(120, r.q[4] * 2));
+    return `<tr><td title="${r.description.replace(/"/g, '&quot;')}">${r.name}</td>`
+      + `<td><span class="tier ${r.tier}">${r.tier}</span></td>`
+      + `<td>${fmt(r.last)}</td><td>${fmt(r.q[0])}</td><td>${fmt(r.q[1])}</td>`
+      + `<td><strong>${fmt(r.q[2])}</strong></td><td>${fmt(r.q[3])}</td><td>${fmt(r.q[4])}</td>`
+      + `<td><span class="bar" style="width:${w}px"></span> ${fmt(r.q[4] - r.q[0])} pp</td></tr>`;
+  }).join('');
+}
+[qEl, tierEl, sortEl].forEach(el => el.addEventListener('input', render));
+document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
+  const k = th.dataset.k;
+  sortEl.value = k === 'name' ? 'name' : k === 'last' ? 'lastdesc' : 'q50desc';
+  render();
+}));
+render();
+</script>
+</body>
+</html>
